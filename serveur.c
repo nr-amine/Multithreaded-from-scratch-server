@@ -7,6 +7,7 @@ Ce travail a été réalisé intégralement par un être humain. */
 #include "utils.h"
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <netdb.h>
 #include <pthread.h>
 #include "encryption/aes.h"
 #include <stdio.h>
@@ -255,36 +256,48 @@ void *handle_client(void *user) {
 }
 
 int create_listening_sock(uint16_t port) {
-  int sock = socket(AF_INET, SOCK_STREAM, 0);
-  if (sock == -1) {
-    perror("socket");
+  char s_port[6];
+  sprintf(s_port, "%u", port);
+
+  struct addrinfo init = {
+    .ai_family = AF_UNSPEC,
+    .ai_socktype = SOCK_STREAM,
+    .ai_flags = AI_PASSIVE
+  };
+  struct addrinfo *addr;
+  if (getaddrinfo(NULL, s_port, &init, &addr) != 0) {
+    perror("getaddrinfo");
     return -1;
   }
+int sock = -1;
+    for (struct addrinfo *tmp = addr; tmp != NULL; tmp = tmp->ai_next) {
+        sock = socket(tmp->ai_family, tmp->ai_socktype, tmp->ai_protocol);
+        if (sock == -1) continue;
 
-  int opt = 1;
-  if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) == -1) {
-    perror("setsockopt");
-    close(sock);
-    return -1;
-  }
+        int opt = 1;
+        setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
-  struct sockaddr_in addr = {.sin_family = AF_INET,
-                             .sin_port = htons(port),
-                             .sin_addr.s_addr = INADDR_ANY};
+        if (bind(sock, tmp->ai_addr, tmp->ai_addrlen) == 0)
+            break;  
 
-  if (bind(sock, (struct sockaddr *)&addr, sizeof(addr)) == -1) {
-    perror("bind");
-    close(sock);
-    return -1;
-  }
+        close(sock);
+        sock = -1;
+    }
 
-  if (listen(sock, SOMAXCONN) == -1) {
-    perror("listen");
-    close(sock);
-    return -1;
-  }
+    freeaddrinfo(addr);
 
-  return sock;
+    if (sock == -1) {
+        fprintf(stderr, "Failed to bind\n");
+        return -1;
+    }
+
+    if (listen(sock, SOMAXCONN) == -1) {
+        perror("listen");
+        close(sock);
+        return -1;
+    }
+
+    return sock;
 }
 
 void *repeat_func(void *arg) {

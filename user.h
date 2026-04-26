@@ -7,7 +7,7 @@ Ce travail a été réalisé intégralement par un être humain. */
 #include <netinet/in.h>
 
 struct user {
-	struct sockaddr *address;
+	struct sockaddr_storage *address;
 	socklen_t addr_len;
 	int sock;
 	char nickname[17];

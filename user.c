@@ -18,18 +18,14 @@ struct user *user_accept(int sl)
 		perror("malloc");
 		return NULL;
 	}
-	struct sockaddr_in addr_clt;
-	socklen_t slt = sizeof(addr_clt);
-	int clt_sock = accept(sl, (struct sockaddr *) &addr_clt, &slt);
+	user->addr_len = sizeof(user->address);
+	int clt_sock = accept(sl, (struct sockaddr *) &user->address, &user->addr_len);
 	if (clt_sock < 0) {
 		perror("accept");
 		free(user);
 		return NULL;
 	}
 	user->sock = clt_sock;
-	user->address = malloc(slt);
-	memcpy(user->address, &addr_clt, slt);
-	user->addr_len = slt;
 	return user;
 }
 

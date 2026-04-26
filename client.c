@@ -11,6 +11,7 @@ Ce travail a été réalisé intégralement par un être humain. */
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <netdb.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -111,7 +112,7 @@ int main(int argc, char *argv[]) {
       AES_CTR_xcrypt_buffer(&ctx, (uint8_t *)line, msg_len);
 
       /*Turning the encrypted message into a hex string*/
-      char hexed_line[PACKET_SIZE];
+      char hexed_line[PACKET_SIZE*2];
       unsigned hex_len = chex_encode((uint8_t *)line, msg_len, hexed_line, PACKET_SIZE - 2);
       hexed_line[hex_len] = '\n'; /* The whole point of the hex encoding is the ability to add
                                      this newline */
@@ -172,24 +173,38 @@ int main(int argc, char *argv[]) {
 }
 
 int connect_serveur_tcp(char *adresse, uint16_t port) {
-  int sock = socket(AF_INET, SOCK_STREAM, 0);
-  if (sock == -1) {
-    perror("socket");
-    return -1;
-  }
-  struct sockaddr_in sa = {.sin_family = AF_INET, .sin_port = htons(port)};
-  if (inet_pton(AF_INET, adresse, &sa.sin_addr) != 1) {
-    fprintf(stderr, "adresse ipv4 non valable\n");
-    close(sock);
-    return -1;
-  }
-  if (connect(sock, (struct sockaddr *)&sa, sizeof(sa)) == -1) {
-    perror("connect");
-    close(sock);
-    return -1;
-  }
+    char s_port[6];
+    snprintf(s_port, sizeof(s_port), "%u", port);
 
-  return sock;
+    struct addrinfo init = {
+        .ai_family   = AF_UNSPEC,
+        .ai_socktype = SOCK_STREAM
+    };
+
+    struct addrinfo *addr;
+    if (getaddrinfo(adresse, s_port, &init, &addr) != 0) {
+        fprintf(stderr, "getaddrinfo failed for %s\n", adresse);
+        return -1;
+    }
+
+    int sock = -1;
+    for (struct addrinfo *tmp = addr; tmp != NULL; tmp = tmp->ai_next) {
+        sock = socket(tmp->ai_family, tmp->ai_socktype, tmp->ai_protocol);
+        if (sock == -1) continue;
+
+        if (connect(sock, tmp->ai_addr, tmp->ai_addrlen) == 0)
+            break; 
+
+        close(sock);
+        sock = -1;
+    }
+
+    freeaddrinfo(addr);
+
+    if (sock == -1)
+        fprintf(stderr, "Could not connect to %s\n", adresse);
+
+    return sock;
 }
 
 int nickname_check(int sock, char *nickname) {
