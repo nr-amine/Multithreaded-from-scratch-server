@@ -208,7 +208,7 @@ void *handle_client(void *user) {
       pthread_mutex_unlock(&lock);
 
       if (target_user != NULL) {
-        char dm_message[PACKET_SIZE + 18];
+        char dm_message[PACKET_SIZE + 23];
         sprintf(dm_message, "(DM) %s: %s", usr->nickname, message);
         if (send_encrypted(target_user->sock, dm_message) < 0) {
           perror("send");
