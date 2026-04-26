@@ -102,6 +102,7 @@ int main(int argc, char *argv[]) {
       if (sz <= 0)
         break;
       line[sz] = '\0';
+      if (lf_to_crlf(line) == NULL) continue;
       size_t msg_len = strlen(line);
       
 
@@ -140,6 +141,7 @@ int main(int argc, char *argv[]) {
       AES_CTR_xcrypt_buffer(&ctx, received_line, bin_len);
       
       received_line[bin_len] = '\0';
+      crlf_to_lf((char *)received_line);
       printf("%s", (char *)received_line);
     }
     while (buff_ready(buf)) {
@@ -158,6 +160,7 @@ int main(int argc, char *argv[]) {
       AES_CTR_xcrypt_buffer(&ctx, received_line, bin_len);
       
       received_line[bin_len] = '\0';
+      crlf_to_lf((char *)received_line);
       printf("%s", (char *)received_line);
     }
     stat = buff_ready(buf) ? 0 : -1;
@@ -201,18 +204,18 @@ int nickname_check(int sock, char *nickname) {
     return -1;
   }
   response[recv_size] = '\0';
-  if (strcmp(response, "0") == 0) {
+  if (strcmp(response, "0 \r\n") == 0) {
     return 0;
-  } else if (strcmp(response, "1") == 0) {
+  } else if (strcmp(response, "1 \r\n") == 0) {
     fprintf(stderr, "Name already taken. Please choose another nickname.\n");
     return -1;
-  } else if (strcmp(response, "3") == 0) {
+  } else if (strcmp(response, "3 \r\n") == 0) {
 
     fprintf(stderr, "Command must start with nickname.\n");
 
     return -1;
 
-  } else if (strcmp(response, "2") == 0) {
+  } else if (strcmp(response, "2 \r\n") == 0) {
     fprintf(stderr, "Invalid nickname. Please choose a nickname with at most "
                     "16 characters.\n");
     return -1;

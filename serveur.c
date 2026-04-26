@@ -106,12 +106,12 @@ void *handle_client(void *user) {
     buf[s] = '\0';
 
     if (usr->nickname[0] != '\0') {
-      size_t in_len = s;
-      while (in_len > 0 && (buf[in_len - 1] == '\n' || buf[in_len - 1] == '\r')) {
-        in_len--;
-      }
+
       uint8_t received_line[PACKET_SIZE];
-      unsigned bin_len = chex_decode(received_line, PACKET_SIZE, buf, in_len);
+      unsigned bin_len = chex_decode(received_line, PACKET_SIZE, buf, s);
+      received_line[bin_len] = '\0';
+      crlf_to_lf((char *)received_line);
+      strcpy(buf, (char *)received_line);
       
       struct AES_ctx ctx;
       AES_init_ctx_iv(&ctx, aes_key, aes_iv);
@@ -125,7 +125,7 @@ void *handle_client(void *user) {
     char *nick = starts_with(buf, "nickname ");
     if (usr->nickname[0] == '\0') {
       if (nick == NULL) {
-        response = "3";
+        response = "3 \r\n";
         send(usr->sock, response, strlen(response), 0);
         continue;
       }
@@ -139,7 +139,7 @@ void *handle_client(void *user) {
       }
 
       if (strlen(nick) > 16) {
-        response = "2";
+        response = "2 \r\n";
         if (send(usr->sock, response, strlen(response), 0) < 0)
           break;
         continue;
@@ -152,7 +152,7 @@ void *handle_client(void *user) {
         }
       }
       if (invalid_char) {
-        response = "2";
+        response = "2 \r\n";
         if (send(usr->sock, response, strlen(response), 0) < 0)
           break;
         continue;
@@ -168,7 +168,7 @@ void *handle_client(void *user) {
         }
       }
 
-      response = exists ? "1" : "0";
+      response = exists ? "1 \r\n" : "0 \r\n";
       if (!exists) {
         strcpy(usr->nickname, nick);
       }
@@ -321,7 +321,6 @@ void *repeat_func(void *arg) {
       if (send_encrypted(tmp->sock, buf) < 0) {
         perror("send");
         close(tmp->sock);
-        list_remove_element(users, tmp);
         user_free(tmp);
       }
       curr = nxt;
@@ -333,8 +332,18 @@ void *repeat_func(void *arg) {
 int send_encrypted(int sock, const char *msg) {
   size_t msg_len = strlen(msg);
   char temp_msg[PACKET_SIZE];
-  strcpy(temp_msg, msg);
-  temp_msg[PACKET_SIZE - 1] = '\0';
+  strncpy(temp_msg, msg, PACKET_SIZE - 3);
+  temp_msg[PACKET_SIZE - 3] = '\0';
+  // making sure its CRLF
+  size_t len = strlen(temp_msg);
+  if (len == 0 || temp_msg[len-1] != '\n') {
+      lf_to_crlf(temp_msg);
+  } else if (len >= 2 && temp_msg[len-2] != '\r') {
+      temp_msg[len-1] = '\r';
+      temp_msg[len]   = '\n';
+      temp_msg[len+1] = '\0';
+  }
+  msg_len = strlen(temp_msg);
   
   struct AES_ctx ctx;
   AES_init_ctx_iv(&ctx, aes_key, aes_iv);

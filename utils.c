@@ -3,23 +3,21 @@ Ce travail a été réalisé intégralement par un être humain. */
 
 
 #include <string.h>
-char *crlf_to_lf(char *line_with_crlf)
-{
-	int len = strlen(line_with_crlf);
-	line_with_crlf[len - 2] = '\n';
-	line_with_crlf[len - 1] = '\0';
-	return line_with_crlf;
+char *crlf_to_lf(char *line) {
+    int len = strlen(line);
+    if (len < 2 || line[len-2] != '\r' || line[len-1] != '\n') return NULL;
+    line[len - 2] = '\n';
+    line[len - 1] = '\0';
+    return line;
 }
 
-char *lf_to_crlf(char *line_with_lf)
-{
-	int len = strlen(line_with_lf);
-	if (len + 2 >= 512) {
-		return NULL;	}
-	line_with_lf[len] = '\r';
-	line_with_lf[len + 1] = '\n';
-	line_with_lf[len + 2] = '\0';
-	return line_with_lf;
+char *lf_to_crlf(char *line_with_lf) {
+    int len = strlen(line_with_lf);
+    if (len == 0 || len + 1 >= 512) return NULL;
+    line_with_lf[len - 1] = '\r';
+    line_with_lf[len]     = '\n';
+    line_with_lf[len + 1] = '\0';
+    return line_with_lf;
 }
 
 char *starts_with(const char *str, const char *prefix)
