@@ -20,4 +20,7 @@ char *lf_to_crlf(char *line_with_lf);
 char *starts_with(const char *str, const char *prefix);
 
 
+unsigned chex_encode(const void* bin, unsigned blen, char* hex, unsigned hlen);
+unsigned chex_decode(void* bin, unsigned blen, const char* hex, unsigned hlen);
+
 #endif /* ifndef UTILS_H */

@@ -6,16 +6,18 @@ TEST = list/test_list
 
 all: $(EXE)
 
-srv: serveur.o list/list.o user.o utils.o
+srv: serveur.o list/list.o user.o utils.o aes.o
 	$(CC) $(LDFLAGS) $^ -o $@
 
-clt: client.o buffer/buffer.o utils.o
+clt: client.o buffer/buffer.o utils.o aes.o
 	$(CC) $(LDFLAGS) $^ -o $@
 
 client.o: client.c
 serveur.o: serveur.c list/list.h
 user.o: user.c user.h
 utils.o: utils.c utils.h
+aes.o: encryption/aes.c encryption/aes.h
+	$(CC) $(CFLAGS) -c $< -o $@
 
 list/list.o: list/list.c list/list.h
 list/test_list.o: list/test_list.c list/list.h
@@ -30,4 +32,4 @@ testlist: list/test_list
 	valgrind --leak-check=full $^
 
 clean:
-	rm -f *.o list/*.o buffer/*.o $(EXE) $(TEST)
+	rm -f *.o list/*.o buffer/*.o encryption/*.o $(EXE) $(TEST)

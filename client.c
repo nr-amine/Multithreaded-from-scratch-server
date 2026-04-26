@@ -7,6 +7,7 @@ Ce travail a été réalisé intégralement par un être humain. */
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <poll.h>
+#include "encryption/aes.h"
 #include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -16,6 +17,25 @@ Ce travail a été réalisé intégralement par un être humain. */
 
 #define PORT_FREESCORD 4321
 #define PACKET_SIZE 512
+
+/*AES Initialization*/
+
+static const uint8_t aes_key[16] = {
+    78, 101, 118, 101, 114, 71, 111, 110, 
+    110, 97, 71, 105, 118, 101, 85, 112
+};
+
+static const uint8_t aes_iv[16] = {
+    70, 114, 101, 101, 115, 99, 111, 114, 
+    100, 83, 101, 114, 118, 101, 114, 33
+};
+/* These need to be shared by both the client and the server 
+   I tried to use RSA like my python project https://github.com/nr-amine/secure_cli_chat
+   but because of the long integer arithmetic required I couldn't use Tiny RSA and using something
+   like libsodium or openSSL would limit portability */
+
+/********************/
+
 /** se connecter au serveur TCP d'adresse donnée en argument sous forme de
  * chaîne de caractère et au port donné en argument
  * retourne le descripteur de fichier de la socket obtenue ou -1 en cas
@@ -48,7 +68,9 @@ int main(int argc, char *argv[]) {
 
   printf("Type \"nickname <your_nickname>\" to set your nickname (max 16 "
          "characters)\n");
-  while (1) {
+
+  /* Nickname init */
+  for(;;) {
     char nickname[PACKET_SIZE];
     if (fgets(nickname, PACKET_SIZE, stdin) == NULL) {
       fprintf(stderr, "Error reading nickname\n");
@@ -61,6 +83,8 @@ int main(int argc, char *argv[]) {
       break;
     }
   }
+  /********************/
+
   struct buffer *buf = buff_create(sock, PACKET_SIZE - 1);
   char *line = malloc(PACKET_SIZE);
   if (buf == NULL) {
@@ -78,8 +102,21 @@ int main(int argc, char *argv[]) {
       if (sz <= 0)
         break;
       line[sz] = '\0';
+      size_t msg_len = strlen(line);
+      
 
-      sent = send(sock, line, strlen(line), 0);
+      struct AES_ctx ctx;
+      AES_init_ctx_iv(&ctx, aes_key, aes_iv);
+      AES_CTR_xcrypt_buffer(&ctx, (uint8_t *)line, msg_len);
+
+      /*Turning the encrypted message into a hex string*/
+      char hexed_line[PACKET_SIZE];
+      unsigned hex_len = chex_encode((uint8_t *)line, msg_len, hexed_line, PACKET_SIZE - 2);
+      hexed_line[hex_len] = '\n'; /* The whole point of the hex encoding is the ability to add
+                                     this newline */
+      hexed_line[hex_len + 1] = '\0';
+      
+      sent = send(sock, hexed_line, strlen(hexed_line), 0);
       if (sent < 0) {
         perror("send");
         break;
@@ -90,12 +127,38 @@ int main(int argc, char *argv[]) {
         fprintf(stderr, "Server disconnected\n");
         break;
       }
-      printf("%s", line);
+      size_t in_len = strlen(line);
+      if (in_len > 0 && line[in_len - 1] == '\n') {
+          in_len--;
+      }
+      
+      uint8_t received_line[PACKET_SIZE];
+      unsigned bin_len = chex_decode(received_line, PACKET_SIZE, line, in_len);
+      
+      struct AES_ctx ctx;
+      AES_init_ctx_iv(&ctx, aes_key, aes_iv);
+      AES_CTR_xcrypt_buffer(&ctx, received_line, bin_len);
+      
+      received_line[bin_len] = '\0';
+      printf("%s", (char *)received_line);
     }
     while (buff_ready(buf)) {
       if (buff_fgets(buf, line, PACKET_SIZE) == NULL)
         break;
-      printf("%s", line);
+      size_t in_len = strlen(line);
+      if (in_len > 0 && line[in_len - 1] == '\n') {
+          in_len--;
+      }
+      
+      uint8_t received_line[PACKET_SIZE];
+      unsigned bin_len = chex_decode(received_line, PACKET_SIZE, line, in_len);
+      
+      struct AES_ctx ctx;
+      AES_init_ctx_iv(&ctx, aes_key, aes_iv);
+      AES_CTR_xcrypt_buffer(&ctx, received_line, bin_len);
+      
+      received_line[bin_len] = '\0';
+      printf("%s", (char *)received_line);
     }
     stat = buff_ready(buf) ? 0 : -1;
   }
@@ -138,18 +201,18 @@ int nickname_check(int sock, char *nickname) {
     return -1;
   }
   response[recv_size] = '\0';
-  if (strcmp(response, "0 \r\n") == 0 || strcmp(response, "0") == 0) {
+  if (strcmp(response, "0") == 0) {
     return 0;
-  } else if (strcmp(response, "1 \r\n") == 0 || strcmp(response, "1") == 0) {
+  } else if (strcmp(response, "1") == 0) {
     fprintf(stderr, "Name already taken. Please choose another nickname.\n");
     return -1;
-  } else if (strcmp(response, "3 \r\n") == 0 || strcmp(response, "3") == 0) {
+  } else if (strcmp(response, "3") == 0) {
 
     fprintf(stderr, "Command must start with nickname.\n");
 
     return -1;
 
-  } else if (strcmp(response, "2 \r\n") == 0 || strcmp(response, "2") == 0) {
+  } else if (strcmp(response, "2") == 0) {
     fprintf(stderr, "Invalid nickname. Please choose a nickname with at most "
                     "16 characters.\n");
     return -1;

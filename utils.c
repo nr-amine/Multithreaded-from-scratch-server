@@ -32,3 +32,40 @@ char *starts_with(const char *str, const char *prefix)
 	}
 	return (char *)(str + prefix_len);
 }
+
+/* These functions are imported directly from https://github.com/stedonet/chex,
+   the goal is to keep using buffer_fgets, but the latter completely breaks if the message is 
+   encrypted by AES since \n gets hidden, so the solution I came up with is to turn the
+   normal string into a hex string and then append \n manually */
+
+/* Copyright (c) 2022 Tero 'stedo' Liukko, MIT License */
+static unsigned char chex_fromxdigit(unsigned h){
+  return ((h & 0xf) + (h >> 6) * 9);
+}
+
+unsigned chex_decode(void* bin, unsigned blen, const char* hex, unsigned hlen){
+  unsigned i, j;
+  for(i = 0, j = 0; (i < blen) && (j+1 < hlen); ++i, j+=2){
+    unsigned char hi = chex_fromxdigit(hex[j+0]);
+    unsigned char lo = chex_fromxdigit(hex[j+1]);
+    ((unsigned char*)bin)[i] = (hi << 4) | lo;
+  }
+  return i;
+}
+
+unsigned chex_isxdigit(unsigned h){
+  unsigned char n09 = h - '0';
+  unsigned char nAF = (h | 0x20) - 'a';
+  return (n09 <= (9 - 0)) || (nAF <= (0xf - 0xa));
+}
+unsigned chex_encode(const void* bin, unsigned blen, char* hex, unsigned hlen){
+  static const char map[] = "0123456789abcdef";
+  unsigned i, j;
+  const unsigned char* ubin = (const unsigned char*)bin;
+  for(i = 0, j = 0; (i < blen) && (j+1 < hlen); ++i, j+=2){
+    hex[j+0] = map[(ubin[i] >> 4) & 0xF];
+    hex[j+1] = map[(ubin[i] >> 0) & 0xF];
+  }
+  if(j < hlen) hex[j] = '\0';
+  return j;
+}

@@ -8,6 +8,7 @@ Ce travail a été réalisé intégralement par un être humain. */
 #include <arpa/inet.h>
 #include <fcntl.h>
 #include <pthread.h>
+#include "encryption/aes.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,6 +17,25 @@ Ce travail a été réalisé intégralement par un être humain. */
 
 #define PORT_FREESCORD 4321
 #define PACKET_SIZE 512
+
+/*AES Initialization*/
+/*The AES implementation used is the one found in https://github.com/kokke/tiny-AES-c */
+
+static const uint8_t aes_key[16] = {
+    78, 101, 118, 101, 114, 71, 111, 110, 
+    110, 97, 71, 105, 118, 101, 85, 112
+};
+/*--C'est de ASCII :)---*/
+static const uint8_t aes_iv[16] = {
+    70, 114, 101, 101, 115, 99, 111, 114, 
+    100, 83, 101, 114, 118, 101, 114, 33
+};
+/* These need to be shared by both the client and the server 
+   I tried to use RSA like my python project https://github.com/nr-amine/secure_cli_chat
+   but because of the long integer arithmetic required I couldn't use Tiny RSA and using something
+   like libsodium or openSSL would limit portability */
+
+/********************/
 
 int pipetb[2];
 struct list *users;
@@ -28,6 +48,8 @@ void *handle_client(void *user);
 int create_listening_sock(uint16_t port);
 
 void *repeat_func(void *arg);
+
+int send_encrypted(int sock, const char *msg);
 
 int main(int argc, char *argv[]) {
   pthread_mutex_init(&lock, NULL);
@@ -83,11 +105,27 @@ void *handle_client(void *user) {
     }
     buf[s] = '\0';
 
+    if (usr->nickname[0] != '\0') {
+      size_t in_len = s;
+      while (in_len > 0 && (buf[in_len - 1] == '\n' || buf[in_len - 1] == '\r')) {
+        in_len--;
+      }
+      uint8_t received_line[PACKET_SIZE];
+      unsigned bin_len = chex_decode(received_line, PACKET_SIZE, buf, in_len);
+      
+      struct AES_ctx ctx;
+      AES_init_ctx_iv(&ctx, aes_key, aes_iv);
+      AES_CTR_xcrypt_buffer(&ctx, received_line, bin_len);
+      
+      received_line[bin_len] = '\0';
+      strcpy(buf, (char *)received_line);
+    }
+
     char *response;
     char *nick = starts_with(buf, "nickname ");
     if (usr->nickname[0] == '\0') {
       if (nick == NULL) {
-        response = "3 \r\n";
+        response = "3";
         send(usr->sock, response, strlen(response), 0);
         continue;
       }
@@ -101,7 +139,7 @@ void *handle_client(void *user) {
       }
 
       if (strlen(nick) > 16) {
-        response = "2 \r\n";
+        response = "2";
         if (send(usr->sock, response, strlen(response), 0) < 0)
           break;
         continue;
@@ -114,7 +152,7 @@ void *handle_client(void *user) {
         }
       }
       if (invalid_char) {
-        response = "2 \r\n";
+        response = "2";
         if (send(usr->sock, response, strlen(response), 0) < 0)
           break;
         continue;
@@ -130,7 +168,7 @@ void *handle_client(void *user) {
         }
       }
 
-      response = exists ? "1 \r\n" : "0 \r\n";
+      response = exists ? "1" : "0";
       if (!exists) {
         strcpy(usr->nickname, nick);
       }
@@ -141,6 +179,7 @@ void *handle_client(void *user) {
       continue;
     }
     char *dm = starts_with(buf, "/msg ");
+
 	/* Parse the message to split the target and the content */
     if (dm != NULL) {
       char *space = NULL;
@@ -171,7 +210,7 @@ void *handle_client(void *user) {
       if (target_user != NULL) {
         char dm_message[PACKET_SIZE + 18];
         sprintf(dm_message, "(DM) %s: %s", usr->nickname, message);
-        if (send(target_user->sock, dm_message, strlen(dm_message), 0) < 0) {
+        if (send_encrypted(target_user->sock, dm_message) < 0) {
           perror("send");
         }
       }
@@ -180,7 +219,7 @@ void *handle_client(void *user) {
     char *list = starts_with(buf, "/list");
     if (list != NULL) {
       char *hd = "Connected users:\n";
-      send(usr->sock, hd, strlen(hd), 0);
+      send_encrypted(usr->sock, hd);
 
       pthread_mutex_lock(&lock);
       for (struct node *curr = users->first; curr != NULL; curr = curr->next) {
@@ -189,12 +228,20 @@ void *handle_client(void *user) {
         if (temp_user->nickname[0] != '\0') {
           char line[64];
           sprintf(line, "- %s\n", temp_user->nickname);
-          send(usr->sock, line, strlen(line), 0);
+          send_encrypted(usr->sock, line);
         }
       }
       pthread_mutex_unlock(&lock);
       continue;
     }
+
+    char *is_command = starts_with(buf, "/");
+    if (is_command != NULL) {
+      char *err_msg = "Unknown command\r\n";
+      send_encrypted(usr->sock, err_msg);
+      continue;
+    }
+
     char message[PACKET_SIZE + 18];
     sprintf(message, "%s: %s", usr->nickname, buf);
     write(pipetb[1], message, strlen(message));
@@ -248,6 +295,8 @@ void *repeat_func(void *arg) {
       perror("read");
       continue;
     }
+    buf[s] = '\0';
+    
     pthread_mutex_lock(&lock);
     for (struct node *curr = users->first; curr != NULL;) {
       struct node *nxt = curr->next;
@@ -269,7 +318,7 @@ void *repeat_func(void *arg) {
         continue;
       }
 
-      if (send(tmp->sock, buf, s, 0) < 0) {
+      if (send_encrypted(tmp->sock, buf) < 0) {
         perror("send");
         close(tmp->sock);
         list_remove_element(users, tmp);
@@ -279,4 +328,22 @@ void *repeat_func(void *arg) {
     }
     pthread_mutex_unlock(&lock);
   }
+}
+
+int send_encrypted(int sock, const char *msg) {
+  size_t msg_len = strlen(msg);
+  char temp_msg[PACKET_SIZE];
+  strcpy(temp_msg, msg);
+  temp_msg[PACKET_SIZE - 1] = '\0';
+  
+  struct AES_ctx ctx;
+  AES_init_ctx_iv(&ctx, aes_key, aes_iv);
+  AES_CTR_xcrypt_buffer(&ctx, (uint8_t *)temp_msg, msg_len);
+  
+  char hexed_line[PACKET_SIZE * 2];
+  unsigned hex_len = chex_encode((uint8_t *)temp_msg, msg_len, hexed_line, sizeof(hexed_line) - 2);
+  hexed_line[hex_len] = '\n';
+  hexed_line[hex_len + 1] = '\0';
+  
+  return send(sock, hexed_line, strlen(hexed_line), 0);
 }
