@@ -1,7 +1,3 @@
-/* Amine Nouar 12409392, Je déclare qu'il s'agit de mon propre travail.
-Ce travail a été réalisé intégralement par un être humain. */
-
-
 #include "list/list.h"
 #include "user.h"
 #include "utils.h"
@@ -209,8 +205,8 @@ void *handle_client(void *user) {
       pthread_mutex_unlock(&lock);
 
       if (target_user != NULL) {
-        char dm_message[PACKET_SIZE + 23];
-        sprintf(dm_message, "(DM) %s: %s", usr->nickname, message);
+        char dm_message[PACKET_SIZE + 64];
+        snprintf(dm_message, sizeof(dm_message), "(DM) %s: %s", usr->nickname, message);
         if (send_encrypted(target_user->sock, dm_message) < 0) {
           perror("send");
         }
@@ -228,7 +224,7 @@ void *handle_client(void *user) {
 
         if (temp_user->nickname[0] != '\0') {
           char line[64];
-          sprintf(line, "- %s\n", temp_user->nickname);
+          snprintf(line, sizeof(line), "- %s\n", temp_user->nickname);
           send_encrypted(usr->sock, line);
         }
       }
@@ -243,8 +239,8 @@ void *handle_client(void *user) {
       continue;
     }
 
-    char message[PACKET_SIZE + 18];
-    sprintf(message, "%s: %s", usr->nickname, buf);
+    char message[PACKET_SIZE + 64];
+    snprintf(message, sizeof(message), "%s: %s", usr->nickname, buf);
     write(pipetb[1], message, strlen(message));
   }
   close(usr->sock);
@@ -333,8 +329,6 @@ void *repeat_func(void *arg) {
 
       if (send_encrypted(tmp->sock, buf) < 0) {
         perror("send");
-        close(tmp->sock);
-        user_free(tmp);
       }
       curr = nxt;
     }

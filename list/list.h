@@ -1,8 +1,5 @@
-/* Amine Nouar XXXXXXXX
-Je déclare qu'il s'agit de mon propre travail.
-Ce travail a été réalisé intégralement par un être humain. */
 #ifndef LIST_H
-#define LIST_H value
+#define LIST_H
 #include <stdlib.h>
 
 /** Doubly linked lists of generic (void *) values */

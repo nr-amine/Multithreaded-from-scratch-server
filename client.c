@@ -1,7 +1,3 @@
-/* Amine Nouar 12409392, Je déclare qu'il s'agit de mon propre travail.
-Ce travail a été réalisé intégralement par un être humain. */
-
-
 #include "buffer/buffer.h"
 #include "utils.h"
 #include <arpa/inet.h>

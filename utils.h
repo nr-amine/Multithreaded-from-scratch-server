@@ -1,8 +1,5 @@
-/* Amine Nouar XXXXXXXX
-Je déclare qu'il s'agit de mon propre travail.
-Ce travail a été réalisé intégralement par un être humain. */
 #ifndef UTILS_H
-#define UTILS_H value
+#define UTILS_H
 
 /* Changer une ligne se terminant par CRLF en une ligne se terminant par LF.
  * La ligne doit être terminée par un carcactère nul.

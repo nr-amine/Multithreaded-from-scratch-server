@@ -1,6 +1,3 @@
-/* Amine Nouar XXXXXXXX
-Je déclare qu'il s'agit de mon propre travail.
-Ce travail a été réalisé intégralement par un être humain. */
 #include "list.h"
 #include <stdio.h>
 #include <string.h>

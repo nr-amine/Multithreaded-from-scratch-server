@@ -1,7 +1,3 @@
-/* Amine Nouar 12409392, Je déclare qu'il s'agit de mon propre travail.
-Ce travail a été réalisé intégralement par un être humain. */
-
-
 #include "user.h"
 #include <stdlib.h>
 #include <string.h>
@@ -35,6 +31,5 @@ void user_free(struct user *user)
 	if (user == NULL) {
 		return;
 	}
-	free(user->address);
 	free(user);
 }

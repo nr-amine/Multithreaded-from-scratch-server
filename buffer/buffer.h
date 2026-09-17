@@ -1,6 +1,3 @@
-/* Amine Nouar XXXXXXXX
-Je déclare qu'il s'agit de mon propre travail.
-Ce travail a été réalisé intégralement par un être humain. */
 #ifndef _BUFFER_H
 #define _BUFFER_H
 #include <stdlib.h>
